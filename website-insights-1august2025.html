@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Traffic Insights - 1 Aug 2025</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;700&display=swap" rel="stylesheet" />
+    <style>
+      body {
+        font-family: 'Oxanium', sans-serif;
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+        min-height: 100vh;
+        overflow-x: hidden;
+        transition: background 0.5s, color 0.5s;
+      }
+      body.light {
+        background: linear-gradient(135deg, #ffffff, #f2f2f2, #e0e0e0);
+        color: #111;
+      }
+      .glass {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        transition: background 0.5s, color 0.5s;
+      }
+      body.light .glass {
+        background: rgba(255, 255, 255, 0.7);
+        color: #000;
+      }
+      .emoji {
+        position: fixed;
+        font-size: 1.5rem;
+        opacity: 0.6;
+        pointer-events: none;
+        animation: float 10s infinite linear;
+      }
+      @keyframes float {
+        0% { transform: translateY(100vh) translateX(0); opacity: 0.8; }
+        100% { transform: translateY(-10vh) translateX(100vw); opacity: 0; }
+      }
+      #themeEmoji {
+        position: fixed;
+        font-size: 5rem;
+        z-index: 50;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+        animation: none;
+        transition: transform 0.8s ease, opacity 0.8s ease;
+      }
+      #themeEmoji.show {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+      #chartContainer {
+        opacity: 0;
+        transition: opacity 1s ease;
+      }
+      #chartContainer.visible {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body class="text-white">
+    <!-- Floating Emojis -->
+    <div id="emojis"></div>
+    <div id="themeEmoji"></div>
+
+    <!-- Header -->
+    <header class="w-full p-4 text-center glass text-2xl font-bold sticky top-0 z-50">
+      🚗 Hyundai Website Traffic Insights - 1 August 2025
+    </header>
+
+    <!-- Filters -->
+    <section class="p-4 flex flex-wrap justify-center gap-4">
+      <select id="dealerSelect" class="glass p-2 text-black font-bold rounded">
+        <option value="Chandra">Chandra Hyundai</option>
+        <option value="Kovai">Kovai Hyundai</option>
+        <option value="Lotus">Lotus Hyundai</option>
+      </select>
+      <select id="siteSelect" class="glass p-2 text-black font-bold rounded">
+        <option value="HM">HM Website</option>
+        <option value="HL">HL Website</option>
+        <option value="OWN">Own Website</option>
+      </select>
+      <button onclick="toggleMode()" class="glass px-4 py-2 text-black font-bold rounded">
+        Theme:☀️/🌑
+      </button>
+    </section>
+
+    <!-- Chart Card -->
+    <section class="p-4 flex justify-center">
+      <div id="chartContainer" class="glass w-full max-w-4xl p-6">
+        <canvas id="trafficChart"></canvas>
+      </div>
+      <div id="ownMessage" class="glass w-full max-w-4xl p-6 text-center hidden text-yellow-300 font-bold">
+        ⚠️ This dealer doesn't have an OWN website.
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="w-full p-4 text-center font-bold glass mt-10">
+      © 2025 Hyundai Traffic Insights Dashboard | Built by Dharun (SEO & ORM Analyst) 🕵️🌐🔍🛡️🚀
+    </footer>
+
+    <audio id="clickSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_9a0118e1b3.mp3?filename=click-124467.mp3"></audio>
+
+    <script>
+      const chartData = {
+        Chandra: {
+          HM: [245, 235, 189, 97, 25, 21, 123],
+          HL: [0, 0, 0, 0, 0, 0, 0],
+          OWN: [0, 0, 0, 0, 0, 0, 0],
+        },
+        Kovai: {
+          HM: [32, 37, 52, 78, 13, 9, 14],
+          HL: [1, 2, 3, 4, 5, 5, 4],
+          OWN: [0, 0, 0, 0, 0, 0, 0],
+        },
+        Lotus: {
+          HM: [0, 0, 0, 0, 0, 0, 0],
+          HL: [0, 0, 0, 0, 0, 0, 0],
+          OWN: [0, 2, 3, 3, 3, 52, 82],
+        },
+      };
+
+      const labels = ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+      const ctx = document.getElementById('trafficChart').getContext('2d');
+      const clickSound = document.getElementById('clickSound');
+      const emojiSet = ['🚗', '👨🏻‍🔧', '📈', '📊', '🔍', '🛡️', '💬', '🕵️', '📢', '🌐', '🔥', '🚀', '📉', '⚙️', '✨', '🔧', '🎯', '🏆', '🎉', '🎁', '💡'];
+      const emojiContainer = document.getElementById('emojis');
+      const chartContainer = document.getElementById('chartContainer');
+      const ownMessage = document.getElementById('ownMessage');
+      const themeEmoji = document.getElementById('themeEmoji');
+
+      function spawnEmoji() {
+        const emoji = document.createElement('div');
+        emoji.classList.add('emoji');
+        emoji.style.left = `${Math.random() * 100}vw`;
+        emoji.style.top = `${Math.random() * 100}vh`;
+        emoji.innerText = emojiSet[Math.floor(Math.random() * emojiSet.length)];
+        emojiContainer.appendChild(emoji);
+        setTimeout(() => { emoji.remove(); }, 10000);
+      }
+
+      setInterval(spawnEmoji, 800);
+
+      let trafficChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Organic Traffic',
+            data: chartData['Chandra']['HM'],
+            borderColor: '#00e6e6',
+            backgroundColor: 'rgba(0, 230, 230, 0.2)',
+            tension: 0.3,
+            fill: true,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+          }]
+        },
+        options: {
+          animation: {
+            duration: 1500,
+            easing: 'easeInOutBounce'
+          },
+          responsive: true,
+          interaction: {
+            mode: 'nearest',
+            intersect: false,
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ` ${context.label}: ${context.parsed.y} visits`;
+                }
+              }
+            },
+            legend: {
+              labels: {
+                color: 'white'
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { color: 'white' },
+              grid: { color: 'rgba(255,255,255,0.1)' }
+            },
+            x: {
+              ticks: { color: 'white' },
+              grid: { color: 'rgba(255,255,255,0.1)' }
+            }
+          }
+        }
+      });
+
+      const dealerSelect = document.getElementById('dealerSelect');
+      const siteSelect = document.getElementById('siteSelect');
+
+      function updateChart() {
+        const dealer = dealerSelect.value;
+        const site = siteSelect.value;
+
+        if ((dealer === 'Chandra' || dealer === 'Kovai') && site === 'OWN') {
+          chartContainer.classList.add('hidden');
+          ownMessage.classList.remove('hidden');
+          return;
+        } else {
+          chartContainer.classList.remove('hidden');
+          ownMessage.classList.add('hidden');
+        }
+
+        trafficChart.data.datasets[0].data = chartData[dealer][site];
+        trafficChart.update();
+        clickSound.currentTime = 0;
+        clickSound.play();
+      }
+
+      dealerSelect.addEventListener('change', updateChart);
+      siteSelect.addEventListener('change', updateChart);
+
+      function toggleMode() {
+        const isLight = document.body.classList.toggle('light');
+        updateChartTheme();
+
+        const emoji = isLight ? '☀️' : '🌑';
+        themeEmoji.innerText = emoji;
+        themeEmoji.classList.add('show');
+        chartContainer.classList.remove('visible');
+
+        setTimeout(() => {
+          themeEmoji.classList.remove('show');
+          chartContainer.classList.add('visible');
+        }, 1000);
+      }
+
+      function updateChartTheme() {
+        const isLight = document.body.classList.contains('light');
+        const textColor = isLight ? '#111' : 'white';
+        const gridColor = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+
+        trafficChart.options.scales.x.ticks.color = textColor;
+        trafficChart.options.scales.y.ticks.color = textColor;
+        trafficChart.options.scales.x.grid.color = gridColor;
+        trafficChart.options.scales.y.grid.color = gridColor;
+        trafficChart.options.plugins.legend.labels.color = textColor;
+
+        trafficChart.update();
+      }
+
+      // Initial fade-in
+      window.onload = () => {
+        chartContainer.classList.add('visible');
+      }
+    </script>
+  </body>
+</html>
